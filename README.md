@@ -14,26 +14,26 @@ python3 -m http.server 8000 --bind 0.0.0.0
 
 A server running in a cloud workspace is not reachable through your computer's localhost. Use your host's supported web access or publish through Pages. There is no package installation, build step, external font, or downloaded audio required by the application. Serve over HTTP; opening the file directly does not load its JavaScript modules reliably.
 
-## V2 operating console
+## Plan A · dark operating console
 
-Designed primarily for **1920 × 1080** and **1366 × 768** desktops. Essential controls and instruments fit on one screen at those resolutions, with only alarm history scrolling internally. Mobile layout is intentionally deferred.
+The selected Plan A concept is implemented as a dark, flat building-plan workspace: a detailed containment and turbine building in the center, a continuous operating rail underneath, and compact inventory, trend and alarm instruments along the bottom. Designed primarily for **1920 × 1080** and **1366 × 768** desktops, including shorter browser viewports such as **1920 × 904**. Essential controls and instruments fit on one screen at those resolutions, with only alarm history scrolling internally. Mobile layout is intentionally deferred.
 
-- Six critical instruments remain at the top: thermal power, net electricity, fuel and primary coolant temperatures, steam pressure, and turbine RPM.
-- System instruments show coolant inventory, flow, steam and condenser temperatures, heat rejection, decay heat, efficiency, auxiliary consumption, core integrity, and the illustrative fuel energy reserve.
-- The process diagram shows all three circuits. Select the reactor, primary pump, turbine, or cooling equipment to highlight the related controls.
-- Hold **− / +** to adjust a command. A keyboard-activated button makes one adjustment. Markers indicate the command; bars and numbers indicate actual response.
+- Nine critical instruments remain at the top: thermal power, net electricity, fuel and primary coolant temperatures, steam pressure and temperature, turbine RPM, condenser temperature, and net efficiency.
+- The lower instrument rail shows coolant inventory, actual primary flow, decay heat, auxiliary consumption, core integrity, and the illustrative fuel energy reserve. Live trends show reactor heat, net electrical output, and condenser heat rejection.
+- The process diagram shows all three circuits. Select the reactor, primary pump, steam valve, or cooling equipment to highlight the related controls.
+- Hold the reactor **− / +** keys to adjust its thermal command. Three flat rotary knobs adjust primary pump speed, steam-valve opening, and condenser cooling flow. Drag a knob vertically; use arrow keys for 1% steps, Page Up/Down for 10%, or Home/End for endpoints. A focused knob also accepts mouse-wheel adjustment. Markers indicate the command; bars and numbers indicate actual response. Valve OPEN/CLOSE buttons command its endpoints, with actual travel remaining gradual.
 - Maintained pump switches retain their speed setpoint when stopped. Pumps ramp up and coast down; the steam valve travels toward its command.
-- **SCRAM** stays in the top bar. It suppresses fission and latches the trip, leaving cooling equipment available. Raising reactor power is blocked until a new experiment is started.
+- **SCRAM** stays alongside the top critical instruments. It suppresses fission and latches the trip, leaving cooling equipment available. Raising reactor power is blocked until a new experiment is started.
 - **Auxiliary core cooling** provides independent modeled heat removal and makeup water. It must be deliberately engaged.
-- **ACK ALL** acknowledges current alarms; **SILENCE** suppresses their audible signal. Neither changes the plant. New or escalated alarms re-annunciate. Cleared conditions remain in the alarm history.
+- **ACK** acknowledges current alarms; **SILENCE** suppresses their audible signal. Neither changes the plant. New or escalated alarms re-annunciate. Cleared conditions remain in the alarm history.
 - **Reset experiment** restores plant conditions, inputs, damage, time, and history. It is separate from alarm acknowledgment and from layout reset.
 - Playback supports pause and 1×/5×/20×/60× speeds. Model information pauses the experiment while open. Background tabs do not accumulate catch-up simulation time.
 
 ## Customize the workspace
 
-Choose **Customize layout**. Drag between the two side-panel headers or between the two bottom-panel headers to swap them. The swap buttons provide a keyboard alternative. Drag the side-panel edges to resize within limits; the focused separators also accept Left/Right arrows.
+Choose **Customize layout**. Drag the three lower instrument-panel headers to reorder inventory, trends, and alarms. Their move buttons provide a keyboard alternative. Drag a divider to resize within limits; focused separators also accept Left/Right arrows. The building plan, operating controls, and top critical instruments stay fixed, as in Plan A.
 
-Choose **Lock layout** to return to operation. Panel arrangement and widths are stored in this browser. **Reset layout** restores the default without resetting the plant. The central diagram, top critical instruments, plant state, and SCRAM control remain fixed. This is constrained docking, not arbitrary placement of individual gauges.
+Choose **Lock layout** to return to operation. Panel arrangement and widths are stored in this browser under a new Plan A layout key; the earlier V2 side-panel preferences are left intact. **Reset layout** restores the default without resetting the plant. The central diagram, top critical instruments, plant state, and SCRAM control remain fixed. This is constrained docking, not arbitrary placement of individual gauges. The SCRAM control is a restrained red-outline button alongside the critical instruments, with no oversized hazard panel.
 
 ## Sound
 
@@ -44,6 +44,10 @@ Sound is off until explicitly enabled, respecting browser autoplay restrictions.
 A successful trip does not instantly cool the fuel. Two effective decay-heat groups and stored energy remain. Stopping primary circulation and leaving auxiliary cooling isolated can produce a cooling emergency after the trip, followed by fuel damage if heat removal remains inadequate. Faster playback helps observe these slower effects.
 
 Auxiliary cooling or restored circulation can reduce temperatures. **Core damage persists after stabilization**; only Reset experiment clears it. A safe reduction in reactor power does not itself trigger an emergency. At low steam power the ideal generator unloads and the rotor coasts down rather than reporting a reactor “stall.”
+
+## Artwork and live interaction
+
+`assets/plant-plan-dark.png` is a generated architectural illustration derived from the selected concept. It contains no dashboard or instrument readings. The SVG layer supplies live flow, actual model values, equipment hit areas, and operating-state highlights. Numeric instruments, alarms, rotary knobs and all other controls are native HTML/SVG and JavaScript, not a screenshot used as the interface. The illustration and routes are schematic and are not validated plant geometry or a piping design.
 
 ## Model boundaries
 

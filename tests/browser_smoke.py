@@ -17,10 +17,10 @@ def number(page, selector):
 def assert_fits(page):
  errors=page.evaluate('''() => {
  const issues=[];
- for(const selector of ['.systems-panel','.controls-panel','.system-content','.controls-content']) {
+ for(const selector of ['.systems-panel','.controls-panel','.system-content','.controls-content','.instrument-dock']) {
   const e=document.querySelector(selector); if(e.scrollHeight>e.clientHeight+2) issues.push(selector+' overflows '+e.scrollHeight+'/'+e.clientHeight);
  }
- for(const selector of ['#emergency-switch','.fuel-budget','#scram-button','#volume','#thermal-power','#fuel-temp','#steam-pressure','#turbine-rpm','.trend-panel','.alarms-panel']) {
+ for(const selector of ['#emergency-switch','#fuel-reserve','#scram-button','#volume','#thermal-power','#fuel-temp','#steam-pressure','#turbine-rpm','#steam-temp','#condenser-temp','#efficiency','#primary-knob','#steam-knob','#cooling-knob','.trend-panel','.alarms-panel']) {
   const r=document.querySelector(selector).getBoundingClientRect(); if(r.bottom>innerHeight || r.right>innerWidth || r.left<0 || r.top<0) issues.push(selector+' outside viewport');
  }
  if(document.documentElement.scrollHeight>innerHeight || document.documentElement.scrollWidth>innerWidth) issues.push('page overflow');
@@ -53,21 +53,44 @@ with sync_playwright() as p:
 
  page.locator('#reset-button').click()
  page.get_by_role('button',name='Pause simulation').click()
+ # The plan layer has no baked-in data: the image must load, and knobs operate the real state.
+ assert page.request.get(options.url.rstrip('/')+'/assets/plant-plan-dark.png').status==200
+ knob=page.get_by_role('slider',name='primary coolant pump setting')
+ knob.focus();knob.press('ArrowUp')
+ assert number(page,'#primary-command')==71
+ assert number(page,'#primary-actual')==70
+ knob.press('Home')
+ for _ in range(7): knob.press('PageUp')
+ assert number(page,'#primary-command')==70
+ box=knob.bounding_box()
+ page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2)
+ page.mouse.down();page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2-40,steps=8);page.mouse.up()
+ assert number(page,'#primary-command')==90
+ assert number(page,'#primary-actual')==70
+ assert page.locator('#primary-needle path').evaluate('(p)=>{const r=p.getBoundingClientRect(),b=p.closest("svg").getBoundingClientRect();return r.left>=b.left&&r.right<=b.right&&r.top>=b.top&&r.bottom<=b.bottom;}')
+ page.locator('[data-valve="0"]').click()
+ assert number(page,'#steam-command')==0
+ assert number(page,'#steam-actual')==65
+ page.locator('[data-valve="100"]').click()
+ assert number(page,'#steam-command')==100
+ page.locator('#reset-button').click()
+ page.get_by_role('button',name='Pause simulation').click()
+ print('PASS: plan asset, knob keyboard/drag input, visible pointer, command/actual separation, and valve commands',flush=True)
+
  page.locator('#layout-button').click()
- page.locator('[data-drag="systems"]').drag_to(page.locator('[data-drag="controls"]'))
- assert 'swap-sides' in page.locator('#workspace').get_attribute('class')
+ page.locator('[data-drag="systems"]').drag_to(page.locator('[data-drag="alarms"]'))
+ order=lambda:page.locator('#instrument-dock > [data-panel]').evaluate_all('(nodes)=>nodes.map(n=>n.dataset.panel)')
+ assert order()==['alarms','trends','systems']
  handle=page.get_by_role('separator',name='Resize systems panel',include_hidden=True);handle.focus();handle.press('ArrowLeft')
- assert float(handle.get_attribute('aria-valuenow'))==238
- page.locator('[data-drag="alarms"]').drag_to(page.locator('[data-drag="trends"]'))
- assert 'swap-bottom' in page.locator('#workspace').get_attribute('class')
+ assert float(handle.get_attribute('aria-valuenow'))==52
  page.locator('#layout-button').click();assert_fits(page)
  page.reload(wait_until='networkidle')
- assert 'swap-sides' in page.locator('#workspace').get_attribute('class')
- assert 'swap-bottom' in page.locator('#workspace').get_attribute('class')
- assert page.get_by_role('separator',name='Resize systems panel',include_hidden=True).get_attribute('aria-valuenow')=='238'
+ assert order()==['alarms','trends','systems']
+ assert page.get_by_role('separator',name='Resize systems panel',include_hidden=True).get_attribute('aria-valuenow')=='52'
  assert_fits(page)
  page.locator('#layout-button').click();page.locator('#layout-reset').click();page.locator('#layout-button').click()
- print('PASS: native panel drag/drop, keyboard resize, saved layout after reload, and layout reset',flush=True)
+ assert order()==['systems','trends','alarms']
+ print('PASS: native instrument docking, keyboard resize, saved layout after reload, and layout reset',flush=True)
 
  page.locator('#sound-button').click()
  assert page.locator('#sound-button').get_attribute('aria-pressed')=='true'
@@ -106,7 +129,7 @@ with sync_playwright() as p:
  page.locator('#emergency-switch').click()
  page.wait_for_function('document.querySelector("#plant-status").textContent==="DAMAGE STABILIZED"',timeout=12000)
  assert number(page,'#integrity-value')<100
- assert number(page,'#fuel-temp')<1000
+ page.wait_for_function('Number(document.querySelector("#fuel-temp").textContent.replaceAll(",","")) < 1000',timeout=3000)
  page.screenshot(path=str(options.artifacts / 'v2-stabilized.png'))
  page.locator('#reset-button').click()
  assert number(page,'#integrity-value')==100
@@ -116,7 +139,8 @@ with sync_playwright() as p:
 
  page.get_by_role('button',name='Pause simulation').click()
  page.screenshot(path=str(options.artifacts / 'v2-final-1366.png'))
- page.set_viewport_size({'width':1920,'height':1080});assert_fits(page)
+ for width, height in [(1280, 720), (1920, 904), (1920, 960), (1600, 900), (1920, 1080)]:
+  page.set_viewport_size({'width':width,'height':height});assert_fits(page)
  page.screenshot(path=str(options.artifacts / 'v2-final-1920.png'))
  page.emulate_media(reduced_motion='reduce')
  assert page.locator('.primary-flow path').first.evaluate('(e)=>getComputedStyle(e).animationName')=='none'

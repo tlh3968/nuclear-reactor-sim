@@ -33,69 +33,60 @@ let samples = [],
   editing = false,
   selected = null;
 let holdTimer, repeatTimer;
+// A new storage key deliberately leaves the previous V2 side-panel layout intact.
+const panelNames = ["systems", "trends", "alarms"];
 const defaultLayout = () => ({
-  sides: false,
-  bottom: false,
-  widths: { systems: 228, controls: 292 },
+  order: [...panelNames],
+  weights: { systems: 50, trends: 28, alarms: 22 },
 });
 let layout = defaultLayout();
 try {
-  const saved = JSON.parse(localStorage.getItem("reactor-lab-v2-layout"));
+  const saved = JSON.parse(localStorage.getItem("reactor-lab-v2-plan-layout"));
   if (
     saved &&
-    typeof saved.sides === "boolean" &&
-    typeof saved.bottom === "boolean"
+    Array.isArray(saved.order) &&
+    saved.order.length === 3 &&
+    new Set(saved.order).size === 3 &&
+    saved.order.every((name) => panelNames.includes(name))
   ) {
-    layout = {
-      sides: saved.sides,
-      bottom: saved.bottom,
-      widths: {
-        systems: clamp(Number(saved.widths?.systems) || 228, 205, 300),
-        controls: clamp(Number(saved.widths?.controls) || 292, 275, 330),
-      },
-    };
+    layout.order = saved.order;
+    for (const name of panelNames)
+      layout.weights[name] = clamp(
+        Number(saved.weights?.[name]) || layout.weights[name],
+        name === "systems" ? 40 : 18,
+        name === "systems" ? 62 : 40,
+      );
   }
-  const volume = Number(localStorage.getItem("reactor-lab-v2-volume"));
-  if (
-    localStorage.getItem("reactor-lab-v2-volume") !== null &&
-    Number.isFinite(volume)
-  )
-    el("volume").value = clamp(volume, 0, 100);
+  const volume = localStorage.getItem("reactor-lab-v2-volume");
+  if (volume !== null && Number.isFinite(Number(volume)))
+    el("volume").value = clamp(Number(volume), 0, 100);
 } catch {
-  /* Local storage is optional, including in private browsing. */
+  /* Optional local preferences. */
 }
 sound.setVolume(Number(el("volume").value) / 100);
 text("volume-value", `${el("volume").value}%`);
-
 function applyLayout() {
-  el("workspace").classList.toggle("swap-sides", layout.sides);
-  el("workspace").classList.toggle("swap-bottom", layout.bottom);
-  document.documentElement.style.setProperty(
-    "--systems-width",
-    `${layout.widths.systems}px`,
-  );
-  document.documentElement.style.setProperty(
-    "--controls-width",
-    `${layout.widths.controls}px`,
-  );
-  document
-    .querySelectorAll("[data-resize]")
-    .forEach((handle) =>
-      handle.setAttribute(
-        "aria-valuenow",
-        Math.round(layout.widths[handle.dataset.resize]),
-      ),
+  for (const name of layout.order) {
+    const panel = document.querySelector(`[data-panel="${name}"]`);
+    el("instrument-dock").append(panel);
+    panel.style.flexGrow = layout.weights[name];
+    const handle = panel.querySelector("[data-resize]");
+    handle.setAttribute("aria-valuenow", Math.round(layout.weights[name]));
+    handle.setAttribute(
+      "aria-valuetext",
+      `${Math.round(layout.weights[name])} layout weight`,
     );
+  }
 }
 function saveLayout() {
   try {
-    localStorage.setItem("reactor-lab-v2-layout", JSON.stringify(layout));
+    localStorage.setItem("reactor-lab-v2-plan-layout", JSON.stringify(layout));
     text(
       "saved-layout",
-      editing ? "EDIT MODE · LAYOUT SAVED" : "LAYOUT LOCKED · SAVED",
+      editing ? "EDIT MODE · DRAG HEADERS" : "LAYOUT LOCKED · SAVED",
     );
   } catch {
-    text("saved-layout", "LAYOUT SAVED FOR THIS SESSION");
+    text("saved-layout", "LAYOUT SAVED THIS SESSION");
   }
 }
 function setEditing(value) {
@@ -104,18 +95,25 @@ function setEditing(value) {
   document
     .querySelectorAll("[data-drag]")
     .forEach((header) => (header.draggable = editing));
-  el("layout-button").setAttribute("aria-pressed", String(editing));
-  text("layout-button", editing ? "Lock layout" : "Customize layout");
-  el("layout-reset").hidden = !editing;
   document
     .querySelectorAll("[data-resize]")
     .forEach((handle) => (handle.tabIndex = editing ? 0 : -1));
+  el("layout-button").setAttribute("aria-pressed", String(editing));
+  text("layout-button", editing ? "Lock layout" : "Customize layout");
+  el("layout-reset").hidden = !editing;
   saveLayout();
 }
-function swapPanels(pair) {
-  if (!editing) return;
-  layout[pair === "sides" ? "sides" : "bottom"] =
-    !layout[pair === "sides" ? "sides" : "bottom"];
+function movePanel(name, target) {
+  if (!editing || !panelNames.includes(name)) return;
+  const from = layout.order.indexOf(name);
+  const to = target
+    ? layout.order.indexOf(target)
+    : (from + 1) % panelNames.length;
+  if (to < 0 || to === from) return;
+  [layout.order[from], layout.order[to]] = [
+    layout.order[to],
+    layout.order[from],
+  ];
   applyLayout();
   saveLayout();
 }
@@ -128,14 +126,9 @@ el("layout-reset").addEventListener("click", () => {
 document
   .querySelectorAll("[data-move]")
   .forEach((button) =>
-    button.addEventListener("click", () => swapPanels(button.dataset.move)),
+    button.addEventListener("click", () => movePanel(button.dataset.move)),
   );
 let draggedPanel = null;
-const matching = (a, b) =>
-  a !== b &&
-  ((["systems", "controls"].includes(a) &&
-    ["systems", "controls"].includes(b)) ||
-    (["trends", "alarms"].includes(a) && ["trends", "alarms"].includes(b)));
 document.querySelectorAll("[data-drag]").forEach((header) => {
   header.addEventListener("dragstart", (event) => {
     if (!editing || event.target.closest("button")) {
@@ -155,7 +148,7 @@ document.querySelectorAll("[data-drag]").forEach((header) => {
 });
 document.querySelectorAll("[data-panel]").forEach((panel) => {
   panel.addEventListener("dragover", (event) => {
-    if (editing && matching(draggedPanel, panel.dataset.panel)) {
+    if (editing && draggedPanel && draggedPanel !== panel.dataset.panel) {
       event.preventDefault();
       panel.classList.add("drop-target");
       event.dataTransfer.dropEffect = "move";
@@ -166,52 +159,65 @@ document.querySelectorAll("[data-panel]").forEach((panel) => {
       panel.classList.remove("drop-target");
   });
   panel.addEventListener("drop", (event) => {
-    if (editing && matching(draggedPanel, panel.dataset.panel)) {
+    if (editing && draggedPanel) {
       event.preventDefault();
-      swapPanels(
-        ["systems", "controls"].includes(draggedPanel) ? "sides" : "bottom",
-      );
+      movePanel(draggedPanel, panel.dataset.panel);
     }
     panel.classList.remove("drop-target");
     draggedPanel = null;
   });
 });
+function resizePanel(name, delta) {
+  const index = layout.order.indexOf(name);
+  const neighbor =
+    layout.order[index === layout.order.length - 1 ? index - 1 : index + 1];
+  const min = name === "systems" ? 40 : 18,
+    max = name === "systems" ? 62 : 40;
+  const neighborMin = neighbor === "systems" ? 40 : 18,
+    neighborMax = neighbor === "systems" ? 62 : 40;
+  const amount = clamp(
+    delta,
+    Math.max(
+      min - layout.weights[name],
+      layout.weights[neighbor] - neighborMax,
+    ),
+    Math.min(
+      max - layout.weights[name],
+      layout.weights[neighbor] - neighborMin,
+    ),
+  );
+  layout.weights[name] += amount;
+  layout.weights[neighbor] -= amount;
+  applyLayout();
+}
 document.querySelectorAll("[data-resize]").forEach((handle) => {
   const name = handle.dataset.resize;
   handle.setAttribute("role", "separator");
   handle.setAttribute("aria-orientation", "vertical");
   handle.setAttribute("aria-label", `Resize ${name} panel`);
-  handle.setAttribute("aria-valuemin", name === "systems" ? 205 : 275);
-  handle.setAttribute("aria-valuemax", name === "systems" ? 300 : 330);
+  handle.setAttribute("aria-valuemin", name === "systems" ? 40 : 18);
+  handle.setAttribute("aria-valuemax", name === "systems" ? 62 : 40);
   handle.tabIndex = -1;
   handle.addEventListener("keydown", (event) => {
     if (!editing || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
     event.preventDefault();
-    const right = name === "controls" ? !layout.sides : layout.sides;
-    layout.widths[name] = clamp(
-      layout.widths[name] +
-        (event.key === "ArrowRight" ? 10 : -10) * (right ? -1 : 1),
-      name === "systems" ? 205 : 275,
-      name === "systems" ? 300 : 330,
-    );
-    applyLayout();
+    const last = layout.order.indexOf(name) === 2;
+    resizePanel(name, (event.key === "ArrowRight" ? 2 : -2) * (last ? -1 : 1));
     saveLayout();
   });
   handle.addEventListener("pointerdown", (event) => {
     if (!editing) return;
     event.preventDefault();
     handle.setPointerCapture(event.pointerId);
-    const name = handle.dataset.resize,
-      start = event.clientX,
-      width = layout.widths[name];
-    const right = name === "controls" ? !layout.sides : layout.sides;
+    let lastX = event.clientX;
+    const direction = layout.order.indexOf(name) === 2 ? -1 : 1;
     const move = (next) => {
-      layout.widths[name] = clamp(
-        width + (next.clientX - start) * (right ? -1 : 1),
-        name === "systems" ? 205 : 275,
-        name === "systems" ? 300 : 330,
-      );
-      applyLayout();
+      const delta =
+        ((next.clientX - lastX) / el("instrument-dock").clientWidth) *
+        100 *
+        direction;
+      lastX = next.clientX;
+      resizePanel(name, delta);
     };
     const stop = () => {
       handle.removeEventListener("pointermove", move);
@@ -300,6 +306,88 @@ document.querySelectorAll("[data-adjust]").forEach((button) => {
     if (event.detail === 0) adjust(button);
   });
 });
+// Relative dragging avoids a jump when grabbing a knob. Keyboard controls follow ARIA slider conventions.
+function updateKnob(name) {
+  const knob = el(`${name}-knob`),
+    value = sim.controls[name];
+  knob.setAttribute("aria-valuenow", value);
+  knob.setAttribute("aria-valuetext", `${value} percent`);
+  el(`${name}-needle`).setAttribute(
+    "transform",
+    `rotate(${-135 + value * 2.7} 50 50)`,
+  );
+}
+function setKnob(name, value, audible = true) {
+  const next = clamp(Math.round(value), 0, 100);
+  if (next === sim.controls[name]) return;
+  sim.setControl(name, next);
+  selectEquipment(name);
+  if (audible) sound.click();
+  render();
+}
+document.querySelectorAll("[data-knob]").forEach((knob) => {
+  const name = knob.dataset.knob;
+  knob.addEventListener("keydown", (event) => {
+    const steps = {
+      ArrowUp: 1,
+      ArrowRight: 1,
+      ArrowDown: -1,
+      ArrowLeft: -1,
+      PageUp: 10,
+      PageDown: -10,
+    };
+    if (Object.hasOwn(steps, event.key)) {
+      event.preventDefault();
+      setKnob(name, sim.controls[name] + steps[event.key]);
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      setKnob(name, event.key === "Home" ? 0 : 100);
+    }
+  });
+  knob.addEventListener(
+    "wheel",
+    (event) => {
+      if (document.activeElement !== knob) return;
+      event.preventDefault();
+      setKnob(name, sim.controls[name] + (event.deltaY < 0 ? 1 : -1));
+    },
+    { passive: false },
+  );
+  knob.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    knob.focus();
+    knob.setPointerCapture(event.pointerId);
+    knob.classList.add("dragging");
+    const x = event.clientX,
+      y = event.clientY,
+      start = sim.controls[name];
+    const move = (next) =>
+      setKnob(
+        name,
+        start + (y - next.clientY) * 0.5 + (next.clientX - x) * 0.15,
+        false,
+      );
+    const stop = () => {
+      knob.classList.remove("dragging");
+      knob.removeEventListener("pointermove", move);
+      knob.removeEventListener("pointerup", stop);
+      knob.removeEventListener("pointercancel", stop);
+      knob.removeEventListener("lostpointercapture", stop);
+      sound.click();
+    };
+    knob.addEventListener("pointermove", move);
+    knob.addEventListener("pointerup", stop);
+    knob.addEventListener("pointercancel", stop);
+    knob.addEventListener("lostpointercapture", stop);
+  });
+});
+document.querySelectorAll("[data-valve]").forEach((button) =>
+  button.addEventListener("click", () => {
+    setKnob("steam", Number(button.dataset.valve));
+  }),
+);
+
 window.addEventListener("blur", stopHold);
 for (const name of ["primary", "cooling", "emergency"]) {
   el(`${name}-switch`).addEventListener("click", () => {
@@ -507,12 +595,12 @@ function renderChart(r) {
   const ceiling =
     Math.ceil(
       Math.max(
-        1000,
+        100,
         ...samples.map((point) =>
           Math.max(point.heat, point.electric, point.cooling),
         ),
-      ) / 500,
-    ) * 500;
+      ) / 100,
+    ) * 100;
   text("chart-top", n(ceiling, 0));
   text("chart-middle", n(ceiling / 2, 0));
   for (const [id, key] of [
@@ -613,18 +701,15 @@ function render() {
     r.shaftPower < 0.7 ? "GENERATOR UNLOADED / COASTING" : "3,000 rpm governed",
   );
   text("coolant-level", `${n(r.coolantFraction * 100)}%`);
-  el("inventory-fill").style.height = `calc(${r.coolantFraction * 100}% - 6px)`;
+  fill("inventory-fill", r.coolantFraction * 100);
   text("inventory-state", r.coolantFraction < 0.8 ? "LOW LEVEL" : "NOMINAL");
-  text("primary-flow", `${n(r.actual.primary, 0)}% actual flow`);
-  text("steam-temp", `${n(r.steamTemperature)} °C`);
-  text("condenser-temp", `${n(r.condenserTemperature)} °C`);
+  text("primary-flow", `${n(r.actual.primary, 0)}%`);
+  text("steam-temp", n(r.steamTemperature));
+  text("condenser-temp", n(r.condenserTemperature));
   text("heat-rejection", `${n(r.coolingHeat)} MW`);
   text("decay-heat", `${n(r.decayHeat)} MW`);
   text("auxiliary-power", `${n(r.auxiliaryPower)} MW`);
-  text(
-    "efficiency",
-    r.efficiency === null ? "TRANSIENT" : `${n(r.efficiency)}%`,
-  );
+  text("efficiency", r.efficiency === null ? "—" : n(r.efficiency));
   text("integrity-value", `${n(100 - r.coreDamage, 2)}%`);
   fill("integrity-fill", 100 - r.coreDamage);
   el("integrity-fill").style.background =
@@ -636,22 +721,31 @@ function render() {
       : "No fuel damage recorded",
   );
   text("fuel-reserve", `${n(r.fuelPercent, 2)}%`);
+  text("reactor-target-power", n(sim.controls.reactor * 10, 0));
+  fill("stat-primary-flow", r.actual.primary);
+  fill("stat-decay-heat", r.decayHeat / 0.6);
+  fill("stat-auxiliary-power", r.auxiliaryPower / 0.2);
+  fill("stat-fuel-reserve", r.fuelPercent);
+  fill("steam-temp-bar", r.steamTemperature / 3.5);
+  fill("condenser-temp-bar", r.condenserTemperature / 0.85);
+  fill("efficiency-bar", (r.efficiency ?? 0) * 2.5);
+  el("efficiency").title =
+    r.efficiency === null
+      ? "Not meaningful during transients or shutdown"
+      : "Net electricity divided by reactor heat";
   for (const name of ["reactor", "primary", "steam", "cooling"]) {
     percent(`${name}-command`, sim.controls[name]);
     const actual = name === "reactor" ? r.heat / 10 : r.actual[name];
     percent(`${name}-actual`, actual);
     fill(`${name}-travel`, actual);
     el(`${name}-target`).style.left = `${sim.controls[name]}%`;
+    if (name !== "reactor") updateKnob(name);
   }
   for (const name of ["primary", "cooling", "emergency"]) {
     const on = sim.equipment[name],
       button = el(`${name}-switch`);
     button.setAttribute("aria-pressed", String(on));
-    button.querySelector("span").textContent = on
-      ? name === "emergency"
-        ? "ON"
-        : "RUN"
-      : "OFF";
+
     button.setAttribute(
       "aria-label",
       `${on ? "Stop" : "Start"} ${name === "emergency" ? "auxiliary core cooling" : `${name} pump`}`,
@@ -688,6 +782,9 @@ function render() {
   flow(".steam-flow path", r.turbineHeat / 700, 1.4);
   flow(".cooling-flow path", r.actual.cooling / 100, 1.5);
   flow(".shaft-motion", r.rpm / 3000, 0.6);
+  flow(".emergency-flow path", r.actual.emergency / 100, 1.8);
+  document.querySelector(".emergency-pipe").style.opacity =
+    r.actual.emergency > 1 ? ".65" : "0";
   document
     .querySelector(".pump.device")
     .classList.toggle("stopped", r.actual.primary < 1);
