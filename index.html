@@ -2,780 +2,921 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#101715" />
-    <meta
-      name="description"
-      content="Explore the connected systems of a nuclear power plant in an interactive, simplified PWR simulator."
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#10151c" />
+    <title>Reactor Lab · Unit 01 / V2</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2318202a'/%3E%3Cpath d='M16 5v22M5 16h22M8 8l16 16M8 24L24 8' stroke='%2393c5c8'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%2393c5c8'/%3E%3C/svg%3E"
     />
-    <title>Reactor Lab — PWR Simulator</title>
     <link rel="stylesheet" href="styles.css" />
     <script type="module" src="app.js"></script>
   </head>
   <body>
-    <header class="app-header">
-      <a class="brand" href="./" aria-label="Reactor Lab home">
-        <span class="brand-mark" aria-hidden="true"
-          ><svg viewBox="0 0 32 32">
-            <ellipse cx="16" cy="16" rx="13" ry="5" />
-            <ellipse
-              cx="16"
-              cy="16"
-              rx="13"
-              ry="5"
-              transform="rotate(60 16 16)"
-            />
-            <ellipse
-              cx="16"
-              cy="16"
-              rx="13"
-              ry="5"
-              transform="rotate(120 16 16)"
-            />
-            <circle cx="16" cy="16" r="2" /></svg
-        ></span>
-        <span
-          >Reactor<span class="brand-light">Lab</span
-          ><small>AN INTERACTIVE ENERGY SANDBOX</small></span
+    <header class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <ellipse cx="16" cy="16" rx="14" ry="5" />
+          <ellipse
+            cx="16"
+            cy="16"
+            rx="14"
+            ry="5"
+            transform="rotate(60 16 16)"
+          />
+          <ellipse
+            cx="16"
+            cy="16"
+            rx="14"
+            ry="5"
+            transform="rotate(120 16 16)"
+          />
+          <circle cx="16" cy="16" r="2" /></svg
+        ><strong>REACTOR<span>LAB</span></strong
+        ><b>V2</b>
+      </div>
+      <div class="unit-identity">UNIT 01 <span>/</span> PWR OPERATIONS</div>
+      <div class="top-actions">
+        <button id="layout-button" aria-pressed="false">Customize layout</button
+        ><button id="layout-reset" hidden>Reset layout</button
+        ><button id="help-button" aria-label="Open model information">
+          Model info
+        </button>
+        <div class="sound-control">
+          <button
+            id="sound-button"
+            aria-pressed="false"
+            title="Enable equipment and alarm sounds"
+          >
+            SOUND OFF</button
+          ><label class="sr-only" for="volume">Master volume</label
+          ><input
+            id="volume"
+            type="range"
+            min="0"
+            max="100"
+            value="35"
+            aria-label="Master volume"
+          /><output id="volume-value" for="volume">35%</output>
+        </div>
+        <button
+          id="reset-button"
+          title="Restore all plant conditions and clear damage"
         >
-      </a>
-      <nav aria-label="Main navigation">
-        <a class="nav-active" href="#plant">Live plant</a
-        ><a href="#model-notes"
-          >About the model
-          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 18 18 6M6 6h12v12" /></svg
-        ></a>
-      </nav>
-      <span class="version"><span class="small-dot"></span> PWR / 01</span>
+          Reset experiment</button
+        ><button id="scram-button" class="scram">■ SCRAM</button>
+      </div>
     </header>
-    <main>
-      <section class="intro" aria-labelledby="page-title">
-        <div>
-          <p class="eyebrow">THE POWER OF CONNECTED SYSTEMS</p>
-          <h1 id="page-title">Follow the energy.</h1>
-          <p class="intro-copy">
-            Make a change. Watch your plant find its balance.
-          </p>
-          <a class="mobile-jump" href="#controls-title"
-            >Adjust inputs
-            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 4v16m-6-6 6 6 6-6" /></svg
-          ></a>
-        </div>
-        <div class="transport">
-          <span class="sim-clock"
-            ><span class="live-dot"></span><span id="sim-time">00:00</span
-            ><span class="clock-label">SIM TIME</span></span
+    <section class="annunciator" aria-label="Plant operating state">
+      <div class="phase">
+        <i></i><strong id="plant-status" role="status">NORMAL OPERATION</strong>
+      </div>
+      <p id="plant-guidance">Heat transfer balanced. Equipment available.</p>
+      <span class="clock"><span id="sim-time">00:00</span> SIM</span
+      ><button
+        id="pause-button"
+        aria-label="Pause simulation"
+        aria-pressed="false"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path id="pause-icon" d="M8 4v16M16 4v16" /></svg
+        ><span id="pause-label">PAUSE</span></button
+      ><label class="sr-only" for="speed">Simulation speed</label
+      ><select id="speed">
+        <option value="1">1×</option>
+        <option value="5">5×</option>
+        <option value="20">20×</option>
+        <option value="60">60×</option>
+      </select>
+    </section>
+    <section class="kpi-strip" aria-label="Critical instruments">
+      <article>
+        <label>REACTOR THERMAL</label>
+        <div><strong id="thermal-power">—</strong><span>MWth</span></div>
+        <small id="thermal-power-detail">1,000 MWth rated</small>
+        <div class="instrument-track"><i id="thermal-power-bar"></i></div>
+      </article>
+      <article>
+        <label>NET ELECTRICAL</label>
+        <div><strong id="electrical-power">—</strong><span>MWe</span></div>
+        <small id="electrical-power-detail">After auxiliary loads</small>
+        <div class="instrument-track"><i id="electrical-power-bar"></i></div>
+      </article>
+      <article>
+        <label>FUEL TEMPERATURE</label>
+        <div><strong id="fuel-temp">—</strong><span>°C</span></div>
+        <small id="fuel-temp-detail">Core thermal state</small>
+        <div class="instrument-track"><i id="fuel-temp-bar"></i></div>
+      </article>
+      <article>
+        <label>PRIMARY COOLANT</label>
+        <div><strong id="primary-temp">—</strong><span>°C</span></div>
+        <small id="primary-temp-detail">155 bar regulated</small>
+        <div class="instrument-track"><i id="primary-temp-bar"></i></div>
+      </article>
+      <article>
+        <label>STEAM PRESSURE</label>
+        <div><strong id="steam-pressure">—</strong><span>bar</span></div>
+        <small id="steam-pressure-detail">Secondary circuit</small>
+        <div class="instrument-track"><i id="steam-pressure-bar"></i></div>
+      </article>
+      <article>
+        <label>TURBINE SPEED</label>
+        <div><strong id="turbine-rpm">—</strong><span>rpm</span></div>
+        <small id="turbine-rpm-detail">3,000 rpm governed</small>
+        <div class="instrument-track"><i id="turbine-rpm-bar"></i></div>
+      </article>
+    </section>
+    <main class="workspace" id="workspace">
+      <section class="panel systems-panel" data-panel="systems">
+        <header class="panel-header" data-drag="systems">
+          <span><b class="panel-code">01</b> SYSTEM INSTRUMENTS</span
+          ><button
+            class="move-panel"
+            data-move="sides"
+            aria-label="Swap side panels"
           >
-          <div class="playback">
-            <button
-              id="pause-button"
-              class="icon-button"
-              type="button"
-              aria-label="Pause simulation"
-              aria-pressed="false"
-            >
-              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path id="pause-icon" d="M9 5v14M15 5v14" />
-              </svg></button
-            ><label class="sr-only" for="speed">Simulation speed</label
-            ><select id="speed">
-              <option value="1">1× speed</option>
-              <option value="3">3× speed</option>
-              <option value="10">10× speed</option>
-            </select>
-          </div>
-        </div>
-      </section>
-      <section class="metrics-strip" aria-label="Plant output">
-        <article class="metric">
-          <span class="metric-label"
-            ><span class="metric-icon amber">◈</span> REACTOR THERMAL
-            POWER</span
-          >
-          <div>
-            <strong id="thermal-power">600.0</strong
-            ><span class="unit">MW<span class="unit-sub">th</span></span>
-          </div>
-          <span class="metric-detail" id="thermal-detail"
-            >60% of rated heat output</span
-          ><span class="metric-bar"><i id="thermal-bar"></i></span>
-        </article>
-        <article class="metric">
-          <span class="metric-label"
-            ><span class="metric-icon mint">ϟ</span> NET ELECTRICAL OUTPUT</span
-          >
-          <div>
-            <strong id="electrical-power">—</strong
-            ><span class="unit">MW<span class="unit-sub">e</span></span>
-          </div>
-          <span class="metric-detail" id="electrical-detail"
-            >After plant power consumption</span
-          ><span class="metric-bar mint-bar"><i id="electrical-bar"></i></span>
-        </article>
-        <article class="metric">
-          <span class="metric-label"
-            ><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m4 17 7-7 4 4 5-8M14 6h6v6" />
-            </svg>
-            NET THERMAL EFFICIENCY</span
-          >
-          <div>
-            <strong id="efficiency">—</strong><span class="unit">%</span>
-          </div>
-          <span class="metric-detail" id="efficiency-detail"
-            >Net electricity / reactor heat</span
-          >
-        </article>
-        <article class="metric">
-          <span class="metric-label"
-            ><span class="metric-icon blue">≋</span> CONDENSER COOLING</span
-          >
-          <div>
-            <strong id="heat-rejection">—</strong><span class="unit">MW</span>
-          </div>
-          <span class="metric-detail">Heat transferred to the environment</span>
-        </article>
-      </section>
-      <div class="workspace">
-        <div class="plant-column">
-          <section
-            class="panel plant-panel"
-            id="plant"
-            aria-labelledby="plant-title"
-          >
-            <div class="panel-heading">
-              <div>
-                <h2 id="plant-title">
-                  The live plant <span class="tag">PWR</span>
-                </h2>
-                <p>Three circuits. One continuous exchange of energy.</p>
+            ⇄
+          </button>
+        </header>
+        <div class="system-content">
+          <div class="instrument-block">
+            <div class="instrument-label">
+              <span>PRIMARY INVENTORY</span><b id="inventory-state">NOMINAL</b>
+            </div>
+            <div class="inventory-vessel">
+              <div class="inventory-scale">
+                <span>100</span><span>50</span><span>0</span>
               </div>
-              <span class="status-badge" id="plant-status" role="status"
-                ><span></span> Stable operation</span
-              >
-            </div>
-            <div class="circuit-legend" aria-label="Circuit colors">
-              <span><i class="amber-bg"></i>Primary coolant</span
-              ><span><i class="mint-bg"></i>Water &amp; steam</span
-              ><span><i class="blue-bg"></i>Cooling water</span>
-            </div>
-            <div class="schematic-wrap">
-              <svg
-                class="schematic"
-                viewBox="0 0 1000 530"
-                role="img"
-                aria-labelledby="schematic-title schematic-desc"
-              >
-                <title id="schematic-title">
-                  Live pressurized water reactor diagram
-                </title>
-                <desc id="schematic-desc">
-                  The reactor sends heat through the primary circuit to the
-                  steam generator. Secondary steam drives a turbine and
-                  generator, then condenses and returns. A third cooling-water
-                  circuit removes condenser heat. Live values are also provided
-                  in the readouts below.
-                </desc>
-                <defs>
-                  <pattern
-                    id="grid"
-                    width="24"
-                    height="24"
-                    patternUnits="userSpaceOnUse"
-                  >
-                    <circle cx="1" cy="1" r=".7" fill="#314038" />
-                  </pattern>
-                  <linearGradient id="vessel-fill" x1="0" x2="1" y1="0" y2="1">
-                    <stop stop-color="#29332b" />
-                    <stop offset="1" stop-color="#19231f" />
-                  </linearGradient>
-                  <linearGradient
-                    id="core-fill"
-                    gradientUnits="userSpaceOnUse"
-                    x1="0"
-                    x2="0"
-                    y1="235"
-                    y2="300"
-                  >
-                    <stop stop-color="#f4c477" />
-                    <stop offset="1" stop-color="#9b6c30" />
-                  </linearGradient>
-                  <linearGradient id="steam-fill" x1="0" x2="0" y1="0" y2="1">
-                    <stop stop-color="#28473c" />
-                    <stop offset="1" stop-color="#182d27" />
-                  </linearGradient>
-                </defs>
-                <rect
-                  width="1000"
-                  height="530"
-                  fill="url(#grid)"
-                  opacity=".44"
-                />
-                <ellipse
-                  cx="160"
-                  cy="275"
-                  rx="145"
-                  ry="160"
-                  fill="#e6b667"
-                  opacity=".025"
-                />
-                <g class="pipe primary-pipe">
-                  <path d="M216 215 H350" />
-                  <path d="M350 292 H286 V405 H156 V345" />
-                </g>
-                <g class="pipe steam-pipe">
-                  <path d="M396 180 V130 H657 V170" />
-                  <path d="M657 230 V350" />
-                  <path d="M625 389 H494 V315 H440" />
-                </g>
-                <g class="pipe cooling-pipe">
-                  <path d="M750 369 H842 V392 H860" />
-                  <path d="M906 444 V480 H694 V410" />
-                </g>
-                <g class="flow primary-flow">
-                  <path d="M216 215 H350" />
-                  <path d="M350 292 H286 V405 H156 V345" />
-                </g>
-                <g class="flow steam-flow">
-                  <path d="M396 180 V130 H657 V170" />
-                  <path d="M657 230 V350" />
-                  <path d="M625 389 H494 V315 H440" />
-                </g>
-                <g class="flow cooling-flow">
-                  <path d="M750 369 H842 V392 H860" />
-                  <path d="M906 444 V480 H694 V410" />
-                </g>
-                <text x="103" y="155" class="svg-eyebrow">01 / HEAT</text>
-                <g class="reactor-vessel">
-                  <rect
-                    x="95"
-                    y="184"
-                    width="122"
-                    height="161"
-                    rx="40"
-                    fill="url(#vessel-fill)"
-                    stroke="#b49a6c"
-                    stroke-width="2"
-                  />
-                  <path
-                    d="M95 228 H217 M95 306 H217"
-                    stroke="#b49a6c"
-                    opacity=".26"
-                  />
-                  <rect
-                    x="115"
-                    y="231"
-                    width="82"
-                    height="73"
-                    rx="12"
-                    fill="#e6b667"
-                    opacity=".08"
-                  />
-                  <g
-                    class="fuel-rods"
-                    stroke="url(#core-fill)"
-                    stroke-width="9"
-                    stroke-linecap="round"
-                  >
-                    <path d="M130 241 V293" />
-                    <path d="M147 241 V293" />
-                    <path d="M164 241 V293" />
-                    <path d="M181 241 V293" />
-                  </g>
-                  <path
-                    d="M139 185 V218 M156 178 V219 M173 185 V218"
-                    stroke="#93a196"
-                    stroke-width="5"
-                    stroke-linecap="round"
-                  />
-                </g>
-                <text x="156" y="372" text-anchor="middle" class="svg-label">
-                  Reactor core
-                </text>
-                <text
-                  id="svg-fuel-temp"
-                  x="156"
-                  y="390"
-                  text-anchor="middle"
-                  class="svg-value amber"
-                >
-                  — °C fuel
-                </text>
-                <text
-                  id="svg-primary-temp"
-                  x="281"
-                  y="199"
-                  text-anchor="middle"
-                  class="svg-value amber"
-                >
-                  — °C
-                </text>
-                <g class="pump">
-                  <circle cx="229" cy="405" r="18" />
-                  <path d="M222 395 L240 405 L222 415 Z" />
-                </g>
-                <text x="230" y="449" text-anchor="middle" class="svg-small">
-                  PRIMARY PUMP
-                </text>
-                <g>
-                  <rect
-                    x="350"
-                    y="180"
-                    width="90"
-                    height="150"
-                    rx="30"
-                    fill="url(#steam-fill)"
-                    stroke="#73a28b"
-                    stroke-width="2"
-                  />
-                  <path
-                    d="M366 215 H416 Q430 225 416 236 H373 Q359 247 373 258 H416 Q430 269 416 280 H373 Q359 291 373 302 H413"
-                    fill="none"
-                    stroke="#dfb36e"
-                    stroke-width="3"
-                  />
-                  <path
-                    d="M359 205 H431"
-                    stroke="#6ea68a"
-                    stroke-dasharray="4 5"
-                    opacity=".65"
-                  />
-                </g>
-                <text x="395" y="357" text-anchor="middle" class="svg-label">
-                  Steam generator
-                </text>
-                <text
-                  id="svg-steam-temp"
-                  x="395"
-                  y="375"
-                  text-anchor="middle"
-                  class="svg-value mint"
-                >
-                  — °C steam
-                </text>
-                <text
-                  id="svg-steam-pressure"
-                  x="514"
-                  y="115"
-                  text-anchor="middle"
-                  class="svg-value mint"
-                >
-                  — bar
-                </text>
-                <text x="618" y="92" class="svg-eyebrow">02 / MOTION</text>
-                <g class="turbine">
-                  <path
-                    d="M611 178 L711 158 V242 L611 222 Z"
-                    fill="url(#steam-fill)"
-                    stroke="#7eaa93"
-                    stroke-width="2"
-                  />
-                  <path
-                    d="M633 177 V223 M653 173 V227 M673 169 V231 M693 165 V235"
-                    stroke="#7eaa93"
-                    stroke-width="3"
-                    opacity=".45"
-                  />
-                  <path d="M711 199 H799" stroke="#829689" stroke-width="7" />
-                  <path
-                    class="shaft-motion"
-                    d="M720 199 H790"
-                    stroke="#cad9cc"
-                    stroke-width="2"
-                    stroke-dasharray="3 9"
-                  />
-                </g>
-                <text x="725" y="264" text-anchor="middle" class="svg-label">
-                  Turbine
-                </text>
-                <text
-                  id="svg-rpm"
-                  x="725"
-                  y="283"
-                  text-anchor="middle"
-                  class="svg-value"
-                >
-                  3,000 rpm
-                </text>
-                <g>
-                  <circle
-                    cx="844"
-                    cy="199"
-                    r="45"
-                    fill="#1b3027"
-                    stroke="#94c6a2"
-                    stroke-width="2"
-                  />
-                  <circle
-                    cx="844"
-                    cy="199"
-                    r="32"
-                    fill="none"
-                    stroke="#94c6a2"
-                    opacity=".18"
-                  />
-                  <path
-                    d="M849 177 L833 201 H846 L839 222 L858 195 H845 Z"
-                    fill="#b7e5bd"
-                  />
-                </g>
-                <path d="M889 199 H948 V132" class="electrical-line" />
-                <path
-                  d="M941 140 L948 132 L955 140"
-                  fill="none"
-                  stroke="#c0e8bd"
-                  stroke-width="2"
-                />
-                <text x="844" y="264" text-anchor="middle" class="svg-label">
-                  Generator
-                </text>
-                <text
-                  id="svg-electric"
-                  x="844"
-                  y="283"
-                  text-anchor="middle"
-                  class="svg-value mint"
-                >
-                  — MW net
-                </text>
-                <text x="948" y="113" text-anchor="middle" class="svg-small">
-                  OUTPUT
-                </text>
-                <g>
-                  <rect
-                    x="625"
-                    y="350"
-                    width="125"
-                    height="60"
-                    rx="15"
-                    fill="#192c2d"
-                    stroke="#72a5b4"
-                    stroke-width="2"
-                  />
-                  <path
-                    d="M641 368 H732 M641 380 H732 M641 392 H732"
-                    stroke="#6aa1b3"
-                    stroke-width="2"
-                    opacity=".55"
-                  />
-                </g>
-                <text x="645" y="436" text-anchor="middle" class="svg-label">
-                  Condenser
-                </text>
-                <text
-                  id="svg-condenser-temp"
-                  x="645"
-                  y="454"
-                  text-anchor="middle"
-                  class="svg-value blue"
-                >
-                  — °C
-                </text>
-                <g class="pump feed-pump">
-                  <circle cx="539" cy="389" r="16" />
-                  <path d="M546 380 L531 389 L546 398 Z" />
-                </g>
-                <text x="533" y="426" text-anchor="middle" class="svg-small">
-                  FEEDWATER
-                </text>
-                <text x="846" y="330" class="svg-eyebrow">03 / COOLING</text>
-                <path
-                  d="M868 364 H923 L917 390 L936 445 H854 L873 390 Z"
-                  fill="#1b2c2f"
-                  stroke="#6a9caa"
-                  stroke-width="2"
-                />
-                <path
-                  d="M871 420 H919 M867 430 H924"
-                  stroke="#6a9caa"
-                  opacity=".4"
-                />
-                <path
-                  d="M881 379 H910"
-                  stroke="#6a9caa"
-                  stroke-dasharray="3 4"
-                />
-                <text x="895" y="511" text-anchor="middle" class="svg-label">
-                  Cooling sink
-                </text>
-                <text x="425" y="496" text-anchor="middle" class="svg-small">
-                  CIRCUITS TRANSFER HEAT, NOT WATER
-                </text>
-              </svg>
-            </div>
-            <p class="diagram-hint">
-              Swipe the diagram to explore all three circuits.
-            </p>
-            <div class="plant-insight">
-              <svg
-                class="ui-icon insight-icon"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="M5 4v9h14m-5-5 5 5-5 5" />
-              </svg>
-              <p id="plant-insight">
-                Heat in, electricity and cooling out. Your plant is in balance.
-              </p>
-              <span id="storage-rate">— MW stored</span>
-            </div>
-          </section>
-          <section class="readouts" aria-label="Live component readings">
-            <article>
-              <span>Fuel temperature</span
-              ><strong><span id="fuel-temp">—</span><small> °C</small></strong>
-              <div class="reading-meter"><i id="fuel-meter"></i></div>
-              <p>Heat inside the fuel</p>
-            </article>
-            <article>
-              <span>Primary coolant</span
-              ><strong
-                ><span id="primary-temp">—</span><small> °C</small></strong
-              >
-              <div class="reading-meter"><i id="primary-meter"></i></div>
-              <p>Pressure held at 155 bar</p>
-            </article>
-            <article>
-              <span>Steam pressure</span
-              ><strong
-                ><span id="steam-pressure">—</span><small> bar</small></strong
-              >
-              <div class="reading-meter mint-meter">
-                <i id="steam-meter"></i>
+              <div class="level-tank">
+                <i id="inventory-fill"></i>
+                <div class="tank-lines"></div>
               </div>
-              <p><span id="steam-temp">—</span> °C saturated steam</p>
-            </article>
-            <article>
-              <span>Turbine speed</span
-              ><strong
-                ><span id="turbine-rpm">—</span><small> rpm</small></strong
-              >
-              <div class="reading-meter mint-meter"><i id="rpm-meter"></i></div>
-              <p>Ideal governed generator</p>
-            </article>
-          </section>
-          <section class="panel trend-panel" aria-labelledby="trend-title">
-            <div class="panel-heading">
-              <div>
-                <h2 id="trend-title">A change takes time.</h2>
-                <p>Energy flow over the last 2 simulated minutes</p>
-              </div>
-              <div class="trend-legend">
-                <span><i class="amber-bg"></i>Heat</span
-                ><span><i class="mint-bg"></i>Electricity</span
-                ><span><i class="blue-bg"></i>Cooling</span>
+              <div class="tank-reading">
+                <strong id="coolant-level">100.0<small>%</small></strong>
+                <p>Coolant available</p>
+                <span id="primary-flow">70% flow</span>
               </div>
             </div>
-            <div class="chart-wrap">
-              <span class="chart-unit">MW</span
-              ><svg
-                id="trend-chart"
-                viewBox="0 0 1000 150"
-                role="img"
-                aria-label="Live trend of reactor heat, net electrical output, and condenser cooling"
-              >
-                <g class="chart-grid">
-                  <path d="M38 15 H985 M38 70 H985 M38 125 H985" />
-                  <text id="chart-top" x="0" y="19">1,000</text>
-                  <text id="chart-middle" x="9" y="74">500</text>
-                  <text x="24" y="129">0</text>
-                </g>
-                <path id="heat-trend" class="trend-line heat-trend" />
-                <path id="electric-trend" class="trend-line electric-trend" />
-                <path id="cooling-trend" class="trend-line cooling-trend" />
-              </svg>
-              <div class="chart-times">
-                <span id="chart-start">00:00</span
-                ><span id="chart-end">02:00</span>
-              </div>
-            </div>
-          </section>
-        </div>
-        <aside class="panel controls-panel" aria-labelledby="controls-title">
-          <div class="controls-heading">
-            <span class="eyebrow">YOUR INPUTS</span>
-            <h2 id="controls-title">Take the controls.</h2>
-            <p>
-              Start with a small adjustment.<br />The rest of the plant will
-              respond.
-            </p>
-            <a class="mobile-jump" href="#plant"
-              >View plant
-              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 20V4m-6 6 6-6 6 6" /></svg
-            ></a>
           </div>
-          <div class="control-group">
-            <div class="control-title">
-              <label for="reactor-input"
-                ><span class="control-number">01</span> Reactor setting</label
-              ><output id="reactor-value" for="reactor-input"
-                >60<span>%</span></output
-              >
-            </div>
-            <input
-              id="reactor-input"
-              type="range"
-              min="0"
-              max="100"
-              value="60"
-              step="1"
-              aria-describedby="reactor-help"
-            />
-            <div class="range-labels"><span>0%</span><span>100%</span></div>
-            <p id="reactor-help">
-              Sets the target heat output. The core responds gradually.
-            </p>
-          </div>
-          <div class="control-group">
-            <div class="control-title">
-              <label for="primary-input"
-                ><span class="control-number">02</span> Primary pump</label
-              ><output id="primary-value" for="primary-input"
-                >70<span>%</span></output
-              >
-            </div>
-            <input
-              id="primary-input"
-              type="range"
-              min="0"
-              max="100"
-              value="70"
-              step="1"
-              aria-describedby="primary-help"
-            />
-            <div class="range-labels">
-              <span>Stopped</span><span>Full flow</span>
-            </div>
-            <p id="primary-help">
-              Carries heat from the core to the steam generator.
-            </p>
-          </div>
-          <div class="control-group">
-            <div class="control-title">
-              <label for="steam-input"
-                ><span class="control-number">03</span> Steam valve</label
-              ><output id="steam-value" for="steam-input"
-                >65<span>%</span></output
-              >
-            </div>
-            <input
-              id="steam-input"
-              type="range"
-              min="0"
-              max="100"
-              value="65"
-              step="1"
-              aria-describedby="steam-help"
-            />
-            <div class="range-labels"><span>Closed</span><span>Open</span></div>
-            <p id="steam-help">
-              Admits steam to the turbine, turning heat into shaft power.
-            </p>
-          </div>
-          <div class="control-group">
-            <div class="control-title">
-              <label for="cooling-input"
-                ><span class="control-number">04</span> Cooling flow</label
-              ><output id="cooling-value" for="cooling-input"
-                >75<span>%</span></output
-              >
-            </div>
-            <input
-              id="cooling-input"
-              type="range"
-              min="0"
-              max="100"
-              value="75"
-              step="1"
-              aria-describedby="cooling-help"
-            />
-            <div class="range-labels">
-              <span>Stopped</span><span>Full flow</span>
-            </div>
-            <p id="cooling-help">
-              Removes waste heat so exhaust steam can condense.
-            </p>
-          </div>
-          <div class="fuel-reserve">
+          <div class="system-rows">
             <div>
-              <span class="reserve-icon" aria-hidden="true">▥</span
-              ><span>Fuel energy reserve</span
-              ><strong id="fuel-reserve">100.00%</strong>
+              <span>Steam temperature</span
+              ><strong id="steam-temp">— °C</strong>
             </div>
-            <div class="reserve-track"><i id="reserve-fill"></i></div>
-            <p>Changes slowly with energy generated.</p>
+            <div>
+              <span>Condenser temperature</span
+              ><strong id="condenser-temp">— °C</strong>
+            </div>
+            <div>
+              <span>Condenser heat rejection</span
+              ><strong id="heat-rejection">— MW</strong>
+            </div>
+            <div>
+              <span>Decay heat</span><strong id="decay-heat">— MW</strong>
+            </div>
+            <div>
+              <span>Net thermal efficiency</span
+              ><strong id="efficiency">— %</strong>
+            </div>
+            <div>
+              <span>Auxiliary consumption</span
+              ><strong id="auxiliary-power">— MW</strong>
+            </div>
           </div>
-          <div class="control-actions">
-            <button id="scram-button" type="button">
-              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="6" y="6" width="12" height="12" />
-              </svg>
-              Shut down reactor <span class="button-hint">SCRAM</span></button
-            ><button id="reset-button" type="button">
-              <span aria-hidden="true">↻</span> Reset to balanced state
+          <div class="integrity-block">
+            <div class="instrument-label">
+              <span>CORE INTEGRITY</span
+              ><strong id="integrity-value">100.0%</strong>
+            </div>
+            <div class="integrity-track"><i id="integrity-fill"></i></div>
+            <p id="damage-note">No fuel damage recorded</p>
+          </div>
+          <div class="fuel-budget">
+            <span>Fuel energy reserve</span
+            ><strong id="fuel-reserve">100.00%</strong>
+          </div>
+        </div>
+        <div
+          class="resize-handle"
+          data-resize="systems"
+          title="Drag to resize instruments"
+        ></div>
+      </section>
+      <section class="panel diagram-panel">
+        <header class="panel-header">
+          <span><b class="panel-code">02</b> PROCESS OVERVIEW</span
+          ><span class="diagram-mode">LIVE / PWR</span>
+        </header>
+        <div class="diagram-legend">
+          <span><i class="amber-bg"></i>PRIMARY</span
+          ><span><i class="mint-bg"></i>SECONDARY</span
+          ><span><i class="blue-bg"></i>COOLING</span
+          ><span class="diagram-tip">SELECT EQUIPMENT TO INSPECT</span>
+        </div>
+        <div class="diagram-wrap">
+          <svg
+            class="schematic"
+            viewBox="45 65 930 460"
+            role="img"
+            aria-labelledby="schematic-title schematic-desc"
+          >
+            <title id="schematic-title">
+              Live pressurized water reactor diagram
+            </title>
+            <desc id="schematic-desc">
+              The reactor sends heat through the primary circuit to the steam
+              generator. Secondary steam drives a turbine and generator, then
+              condenses and returns. A third cooling-water circuit removes
+              condenser heat. Live values are also provided in the readouts
+              below.
+            </desc>
+            <defs>
+              <pattern
+                id="grid"
+                width="24"
+                height="24"
+                patternUnits="userSpaceOnUse"
+              >
+                <circle cx="1" cy="1" r=".7" fill="#314038" />
+              </pattern>
+              <linearGradient id="vessel-fill" x1="0" x2="1" y1="0" y2="1">
+                <stop stop-color="#29332b" />
+                <stop offset="1" stop-color="#19231f" />
+              </linearGradient>
+              <linearGradient
+                id="core-fill"
+                gradientUnits="userSpaceOnUse"
+                x1="0"
+                x2="0"
+                y1="235"
+                y2="300"
+              >
+                <stop stop-color="#f4c477" />
+                <stop offset="1" stop-color="#9b6c30" />
+              </linearGradient>
+              <linearGradient id="steam-fill" x1="0" x2="0" y1="0" y2="1">
+                <stop stop-color="#28473c" />
+                <stop offset="1" stop-color="#182d27" />
+              </linearGradient>
+            </defs>
+            <rect width="1000" height="530" fill="url(#grid)" opacity=".44" />
+            <ellipse
+              cx="160"
+              cy="275"
+              rx="145"
+              ry="160"
+              fill="#e6b667"
+              opacity=".025"
+            />
+            <g class="pipe primary-pipe">
+              <path d="M216 215 H350" />
+              <path d="M350 292 H286 V405 H156 V345" />
+            </g>
+            <g class="pipe steam-pipe">
+              <path d="M396 180 V130 H657 V170" />
+              <path d="M657 230 V350" />
+              <path d="M625 389 H494 V315 H440" />
+            </g>
+            <g class="pipe cooling-pipe">
+              <path d="M750 369 H842 V392 H860" />
+              <path d="M906 444 V480 H694 V410" />
+            </g>
+            <g class="flow primary-flow">
+              <path d="M216 215 H350" />
+              <path d="M350 292 H286 V405 H156 V345" />
+            </g>
+            <g class="flow steam-flow">
+              <path d="M396 180 V130 H657 V170" />
+              <path d="M657 230 V350" />
+              <path d="M625 389 H494 V315 H440" />
+            </g>
+            <g class="flow cooling-flow">
+              <path d="M750 369 H842 V392 H860" />
+              <path d="M906 444 V480 H694 V410" />
+            </g>
+            <text x="103" y="155" class="svg-eyebrow">01 / HEAT</text>
+            <g
+              class="reactor-vessel device"
+              data-inspect="reactor"
+              role="button"
+              tabindex="0"
+              aria-label="Inspect reactor power control"
+            >
+              <rect
+                x="95"
+                y="184"
+                width="122"
+                height="161"
+                rx="40"
+                fill="url(#vessel-fill)"
+                stroke="#b49a6c"
+                stroke-width="2"
+              />
+              <path
+                d="M95 228 H217 M95 306 H217"
+                stroke="#b49a6c"
+                opacity=".26"
+              />
+              <rect
+                x="115"
+                y="231"
+                width="82"
+                height="73"
+                rx="12"
+                fill="#e6b667"
+                opacity=".08"
+              />
+              <g
+                class="fuel-rods"
+                stroke="url(#core-fill)"
+                stroke-width="9"
+                stroke-linecap="round"
+              >
+                <path d="M130 241 V293" />
+                <path d="M147 241 V293" />
+                <path d="M164 241 V293" />
+                <path d="M181 241 V293" />
+              </g>
+              <path
+                d="M139 185 V218 M156 178 V219 M173 185 V218"
+                stroke="#93a196"
+                stroke-width="5"
+                stroke-linecap="round"
+              />
+            </g>
+            <text x="156" y="372" text-anchor="middle" class="svg-label">
+              Reactor core
+            </text>
+            <text
+              id="svg-fuel-temp"
+              x="156"
+              y="390"
+              text-anchor="middle"
+              class="svg-value amber"
+            >
+              — °C fuel
+            </text>
+            <text
+              id="svg-primary-temp"
+              x="281"
+              y="199"
+              text-anchor="middle"
+              class="svg-value amber"
+            >
+              — °C
+            </text>
+            <g
+              class="pump device"
+              data-inspect="primary"
+              role="button"
+              tabindex="0"
+              aria-label="Inspect primary pump controls"
+            >
+              <circle cx="229" cy="405" r="18" />
+              <path d="M222 395 L240 405 L222 415 Z" />
+            </g>
+            <text x="230" y="449" text-anchor="middle" class="svg-small">
+              PRIMARY PUMP
+            </text>
+            <g>
+              <rect
+                x="350"
+                y="180"
+                width="90"
+                height="150"
+                rx="30"
+                fill="url(#steam-fill)"
+                stroke="#73a28b"
+                stroke-width="2"
+              />
+              <path
+                d="M366 215 H416 Q430 225 416 236 H373 Q359 247 373 258 H416 Q430 269 416 280 H373 Q359 291 373 302 H413"
+                fill="none"
+                stroke="#dfb36e"
+                stroke-width="3"
+              />
+              <path
+                d="M359 205 H431"
+                stroke="#6ea68a"
+                stroke-dasharray="4 5"
+                opacity=".65"
+              />
+            </g>
+            <text x="395" y="357" text-anchor="middle" class="svg-label">
+              Steam generator
+            </text>
+            <text
+              id="svg-steam-temp"
+              x="395"
+              y="375"
+              text-anchor="middle"
+              class="svg-value mint"
+            >
+              — °C steam
+            </text>
+            <text
+              id="svg-steam-pressure"
+              x="514"
+              y="115"
+              text-anchor="middle"
+              class="svg-value mint"
+            >
+              — bar
+            </text>
+            <text x="618" y="92" class="svg-eyebrow">02 / MOTION</text>
+            <g
+              class="turbine device"
+              data-inspect="steam"
+              role="button"
+              tabindex="0"
+              aria-label="Inspect steam valve controls"
+            >
+              <path
+                d="M611 178 L711 158 V242 L611 222 Z"
+                fill="url(#steam-fill)"
+                stroke="#7eaa93"
+                stroke-width="2"
+              />
+              <path
+                d="M633 177 V223 M653 173 V227 M673 169 V231 M693 165 V235"
+                stroke="#7eaa93"
+                stroke-width="3"
+                opacity=".45"
+              />
+              <path d="M711 199 H799" stroke="#829689" stroke-width="7" />
+              <path
+                class="shaft-motion"
+                d="M720 199 H790"
+                stroke="#cad9cc"
+                stroke-width="2"
+                stroke-dasharray="3 9"
+              />
+            </g>
+            <text x="725" y="264" text-anchor="middle" class="svg-label">
+              Turbine
+            </text>
+            <text
+              id="svg-rpm"
+              x="725"
+              y="283"
+              text-anchor="middle"
+              class="svg-value"
+            >
+              3,000 rpm
+            </text>
+            <g>
+              <circle
+                cx="844"
+                cy="199"
+                r="45"
+                fill="#1b3027"
+                stroke="#94c6a2"
+                stroke-width="2"
+              />
+              <circle
+                cx="844"
+                cy="199"
+                r="32"
+                fill="none"
+                stroke="#94c6a2"
+                opacity=".18"
+              />
+              <path
+                d="M849 177 L833 201 H846 L839 222 L858 195 H845 Z"
+                fill="#b7e5bd"
+              />
+            </g>
+            <path d="M889 199 H948 V132" class="electrical-line" />
+            <path
+              d="M941 140 L948 132 L955 140"
+              fill="none"
+              stroke="#c0e8bd"
+              stroke-width="2"
+            />
+            <text x="844" y="264" text-anchor="middle" class="svg-label">
+              Generator
+            </text>
+            <text
+              id="svg-electric"
+              x="844"
+              y="283"
+              text-anchor="middle"
+              class="svg-value mint"
+            >
+              — MW net
+            </text>
+            <text x="948" y="113" text-anchor="middle" class="svg-small">
+              OUTPUT
+            </text>
+            <g>
+              <rect
+                x="625"
+                y="350"
+                width="125"
+                height="60"
+                rx="15"
+                fill="#192c2d"
+                stroke="#72a5b4"
+                stroke-width="2"
+              />
+              <path
+                d="M641 368 H732 M641 380 H732 M641 392 H732"
+                stroke="#6aa1b3"
+                stroke-width="2"
+                opacity=".55"
+              />
+            </g>
+            <text x="645" y="436" text-anchor="middle" class="svg-label">
+              Condenser
+            </text>
+            <text
+              id="svg-condenser-temp"
+              x="645"
+              y="454"
+              text-anchor="middle"
+              class="svg-value blue"
+            >
+              — °C
+            </text>
+            <g class="pump feed-pump">
+              <circle cx="539" cy="389" r="16" />
+              <path d="M546 380 L531 389 L546 398 Z" />
+            </g>
+            <text x="533" y="426" text-anchor="middle" class="svg-small">
+              FEEDWATER
+            </text>
+            <text x="846" y="330" class="svg-eyebrow">03 / COOLING</text>
+            <path
+              d="M868 364 H923 L917 390 L936 445 H854 L873 390 Z"
+              fill="#1b2c2f"
+              stroke="#6a9caa"
+              stroke-width="2"
+            />
+            <path
+              d="M871 420 H919 M867 430 H924"
+              stroke="#6a9caa"
+              opacity=".4"
+            />
+            <path d="M881 379 H910" stroke="#6a9caa" stroke-dasharray="3 4" />
+            <text x="895" y="511" text-anchor="middle" class="svg-label">
+              Cooling sink
+            </text>
+            <text x="425" y="496" text-anchor="middle" class="svg-small">
+              CIRCUITS TRANSFER HEAT, NOT WATER
+            </text>
+            <g
+              class="device cooling-device"
+              data-inspect="cooling"
+              role="button"
+              tabindex="0"
+              aria-label="Inspect condenser cooling controls"
+            >
+              <rect
+                x="847"
+                y="350"
+                width="97"
+                height="106"
+                rx="10"
+                fill="transparent"
+              />
+            </g>
+          </svg>
+        </div>
+        <div class="process-balance">
+          <div><i></i><span id="balance-label">ENERGY BALANCE</span></div>
+          <strong id="storage-rate">0 MW stored</strong
+          ><span id="inspection-note"
+            >Select a component to highlight its operating controls.</span
+          >
+        </div>
+      </section>
+      <section class="panel controls-panel" data-panel="controls">
+        <header class="panel-header" data-drag="controls">
+          <span><b class="panel-code">03</b> EQUIPMENT CONTROL</span
+          ><button
+            class="move-panel"
+            data-move="sides"
+            aria-label="Swap side panels"
+          >
+            ⇄
+          </button>
+        </header>
+        <div class="controls-content">
+          <section class="equipment-control" id="control-reactor">
+            <div class="equipment-heading">
+              <span><b>R-01</b> REACTOR POWER</span
+              ><span class="mode-label">AUTO POWER</span>
+            </div>
+            <div class="actuator-row">
+              <div class="stepper">
+                <button
+                  data-adjust="reactor"
+                  data-step="-1"
+                  aria-label="Decrease reactor power"
+                >
+                  −</button
+                ><output id="reactor-command">60<small>%</small></output
+                ><button
+                  data-adjust="reactor"
+                  data-step="1"
+                  aria-label="Increase reactor power"
+                >
+                  +
+                </button>
+              </div>
+              <div class="actual-value">
+                <span>ACTUAL HEAT</span
+                ><strong id="reactor-actual">—<small>%</small></strong>
+              </div>
+            </div>
+            <div class="travel-track">
+              <i id="reactor-travel"></i><b id="reactor-target"></b>
+            </div>
+          </section>
+          <section class="equipment-control" id="control-primary">
+            <div class="equipment-heading">
+              <span><b>P-01</b> PRIMARY CIRCULATION</span
+              ><button
+                class="run-switch"
+                id="primary-switch"
+                aria-pressed="true"
+                aria-label="Stop primary circulation"
+              >
+                <i></i><span>RUN</span>
+              </button>
+            </div>
+            <div class="actuator-row">
+              <div class="stepper">
+                <button
+                  data-adjust="primary"
+                  data-step="-5"
+                  aria-label="Decrease primary circulation"
+                >
+                  −</button
+                ><output id="primary-command">70<small>%</small></output
+                ><button
+                  data-adjust="primary"
+                  data-step="5"
+                  aria-label="Increase primary circulation"
+                >
+                  +
+                </button>
+              </div>
+              <div class="actual-value">
+                <span>ACTUAL FLOW</span
+                ><strong id="primary-actual">—<small>%</small></strong>
+              </div>
+            </div>
+            <div class="travel-track">
+              <i id="primary-travel"></i><b id="primary-target"></b>
+            </div>
+          </section>
+          <section class="equipment-control" id="control-steam">
+            <div class="equipment-heading">
+              <span><b>V-01</b> STEAM ADMISSION</span
+              ><span class="mode-label">MOTOR VALVE</span>
+            </div>
+            <div class="actuator-row">
+              <div class="stepper">
+                <button
+                  data-adjust="steam"
+                  data-step="-5"
+                  aria-label="Decrease steam admission"
+                >
+                  −</button
+                ><output id="steam-command">65<small>%</small></output
+                ><button
+                  data-adjust="steam"
+                  data-step="5"
+                  aria-label="Increase steam admission"
+                >
+                  +
+                </button>
+              </div>
+              <div class="actual-value">
+                <span>ACTUAL POSITION</span
+                ><strong id="steam-actual">—<small>%</small></strong>
+              </div>
+            </div>
+            <div class="travel-track">
+              <i id="steam-travel"></i><b id="steam-target"></b>
+            </div>
+          </section>
+          <section class="equipment-control" id="control-cooling">
+            <div class="equipment-heading">
+              <span><b>P-02</b> CONDENSER COOLING</span
+              ><button
+                class="run-switch"
+                id="cooling-switch"
+                aria-pressed="true"
+                aria-label="Stop condenser cooling"
+              >
+                <i></i><span>RUN</span>
+              </button>
+            </div>
+            <div class="actuator-row">
+              <div class="stepper">
+                <button
+                  data-adjust="cooling"
+                  data-step="-5"
+                  aria-label="Decrease condenser cooling"
+                >
+                  −</button
+                ><output id="cooling-command">75<small>%</small></output
+                ><button
+                  data-adjust="cooling"
+                  data-step="5"
+                  aria-label="Increase condenser cooling"
+                >
+                  +
+                </button>
+              </div>
+              <div class="actual-value">
+                <span>ACTUAL FLOW</span
+                ><strong id="cooling-actual">—<small>%</small></strong>
+              </div>
+            </div>
+            <div class="travel-track">
+              <i id="cooling-travel"></i><b id="cooling-target"></b>
+            </div>
+          </section>
+          <section class="emergency-control">
+            <div>
+              <span>AUXILIARY CORE COOLING</span
+              ><small>Independent heat removal + makeup</small>
+            </div>
+            <button
+              id="emergency-switch"
+              class="run-switch emergency-switch"
+              aria-pressed="false"
+              aria-label="Engage auxiliary core cooling"
+            >
+              <i></i><span>OFF</span>
+            </button>
+            <p id="emergency-state">AVAILABLE · ISOLATED</p>
+          </section>
+          <p class="control-hint">
+            Hold − / + to adjust. Markers show command; bars show actual
+            response.
+          </p>
+        </div>
+        <div
+          class="resize-handle"
+          data-resize="controls"
+          title="Drag to resize equipment controls"
+        ></div>
+      </section>
+      <section class="panel trend-panel" data-panel="trends">
+        <header class="panel-header" data-drag="trends">
+          <span
+            ><b class="panel-code">04</b> PROCESS TRENDS
+            <small>LAST 5 SIM MINUTES</small></span
+          >
+          <div class="trend-legend">
+            <span><i class="amber-bg"></i>THERMAL</span
+            ><span><i class="mint-bg"></i>ELECTRICAL</span
+            ><span><i class="blue-bg"></i>COOLING</span>
+          </div>
+          <button
+            class="move-panel"
+            data-move="bottom"
+            aria-label="Swap bottom panels"
+          >
+            ⇄
+          </button>
+        </header>
+        <div class="chart-wrap">
+          <svg
+            viewBox="0 0 1000 115"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Live reactor heat, electrical output, and cooling history"
+          >
+            <g class="chart-grid">
+              <path d="M40 10H990M40 50H990M40 90H990" />
+              <text id="chart-top" x="0" y="14">1,000</text>
+              <text id="chart-middle" x="5" y="54">500</text>
+              <text x="22" y="94">0</text>
+            </g>
+            <path id="heat-trend" class="trend-line heat-trend" />
+            <path id="electric-trend" class="trend-line electric-trend" />
+            <path id="cooling-trend" class="trend-line cooling-trend" />
+          </svg>
+          <div class="chart-times">
+            <span id="chart-start">00:00</span><span id="chart-end">05:00</span>
+          </div>
+        </div>
+      </section>
+      <section class="panel alarms-panel" data-panel="alarms">
+        <header class="panel-header" data-drag="alarms">
+          <span
+            ><b class="panel-code">05</b> ANNUNCIATOR
+            <b id="alarm-count">0</b></span
+          ><button
+            class="move-panel"
+            data-move="bottom"
+            aria-label="Swap bottom panels"
+          >
+            ⇄
+          </button>
+          <div class="alarm-actions">
+            <button id="ack-button" title="Acknowledge all current alarms">
+              ACK ALL</button
+            ><button
+              id="silence-button"
+              aria-pressed="false"
+              title="Silence current audible alarms"
+            >
+              SILENCE
             </button>
           </div>
-          <div class="shutdown-note">
-            <span aria-hidden="true">ⓘ</span>
-            <p>
-              Shutdown stops the chain reaction. Decay heat still needs cooling.
-            </p>
-          </div>
-        </aside>
-      </div>
-      <details class="model-notes" id="model-notes">
-        <summary>
-          <span>Behind the model</span
-          ><span class="notes-summary"
-            >Simple enough to explore. Connected enough to learn.
-            <span aria-hidden="true">+</span></span
-          >
-        </summary>
-        <div class="notes-body">
-          <p>
-            This is a simplified educational PWR, not an engineering or
-            operating tool. Four thermal reservoirs exchange energy over time:
-            fuel, primary coolant, secondary water/steam, and the condenser. An
-            ideal generator converts turbine shaft power to electricity; pumps
-            consume a share of that power.
-          </p>
-          <p>
-            Primary pressure and water inventories are managed automatically.
-            The reactor setting represents a heat-output controller, not a
-            detailed control-rod or neutron model. Steam pressure is estimated
-            from saturated-water temperature. A single decay-heat group
-            preserves residual heat after shutdown. Automatic temperature and
-            pressure trips protect this model; no accident, radiation-release,
-            grid, or demand simulation is included.
-          </p>
-          <p>
-            Energy is accounted for as electricity, heat rejected, or energy
-            stored. Net efficiency is hidden during strong transients because
-            stored heat can temporarily supply the turbine. Fuel reserve is an
-            illustrative energy budget, not isotope depletion. Time speed
-            affects simulation time, not the physics.
-          </p>
-        </div>
-      </details>
-      <footer>
-        <span
-          ><span class="footer-dot"></span> REACTOR LAB
-          <span class="footer-separator">/</span> A work in progress, powered by
-          curiosity.</span
-        ><span
-          >Educational PWR model
-          <span class="footer-separator">/</span> Prototype 01</span
+        </header>
+        <div
+          id="alarm-list"
+          class="alarm-list"
+          aria-label="Active and cleared alarms"
         >
-      </footer>
+          <div class="no-alarms">
+            <span>✓</span><strong>NO ACTIVE ALARMS</strong
+            ><small>Protection systems monitoring</small>
+          </div>
+        </div>
+      </section>
     </main>
-    <noscript
-      ><p class="noscript">
-        JavaScript is required to run this simulator. Enable it and reload the
-        page.
-      </p></noscript
-    >
+    <footer>
+      <span class="footer-state"
+        ><i></i> <b id="footer-state">SYSTEMS AVAILABLE</b></span
+      ><span id="footer-message"
+        >EDUCATIONAL MODEL · NO DEMAND TARGETS · V2 SANDBOX</span
+      ><span id="saved-layout">LAYOUT LOCKED</span>
+    </footer>
+    <dialog id="help-dialog">
+      <form method="dialog">
+        <header>
+          <h2>Unit 01 · Model information</h2>
+          <button aria-label="Close model information">×</button>
+        </header>
+      </form>
+      <div class="help-content">
+        <p>
+          This is an illustrative PWR operating sandbox, not engineering or
+          operating guidance. Coefficients, limits, actuator travel, damage
+          rates, and emergency equipment are fictionalized for learning.
+        </p>
+        <h3>Operate the equipment</h3>
+        <p>
+          Hold the − / + buttons to change a command. Pump switches retain their
+          speed setting when stopped. Actual pump flow ramps over time; the
+          steam valve travels toward its commanded position. Click a component
+          in the process diagram to locate its controls.
+        </p>
+        <h3>Shutdown does not end cooling</h3>
+        <p>
+          SCRAM suppresses fission. Two effective decay-heat groups and stored
+          energy remain. With primary circulation unavailable, fuel can continue
+          heating after the trip and accumulate irreversible model damage.
+          Auxiliary cooling is an abstract independent heat-removal and makeup
+          system; it is not a detailed real ECCS design. Core damage does not
+          imply an explosion or an off-site release.
+        </p>
+        <h3>Alarms and recovery</h3>
+        <p>
+          ACK ALL marks current alarms as acknowledged. SILENCE stops their
+          audible signal. Neither changes plant conditions. A new or escalated
+          alarm re-annunciates. Damage remains after cooling is restored. Reset
+          experiment clears the simulation, including damage and history; it is
+          not an operating recovery procedure. Low-power operation is not itself
+          an emergency.
+        </p>
+        <h3>Desktop workspace</h3>
+        <p>
+          Designed for 16:9 desktop displays at 1366 × 768 or larger. Customize
+          layout unlocks the side and bottom panel headers. Drag between
+          matching panels, or use their swap buttons. Drag the side-panel edges
+          to resize them. Lock to save the layout in this browser; reset layout
+          restores the default without resetting the plant.
+        </p>
+        <h3>Model boundaries</h3>
+        <p>
+          Four thermal reservoirs, rotor inertia, automatic generator loading,
+          and energy accounting are modeled. Primary pressure is regulated at
+          155 bar. Inventory loss above the illustrative boiling threshold
+          carries energy away; makeup enters at the fixed 18 °C cooling-sink
+          temperature. Steam pressure is a saturation-temperature estimate, not
+          a complete two-phase model. External auxiliary electricity is assumed
+          available. There is no detailed neutronics, fuel chemistry, grid,
+          containment, radiation-release, or accident-progression calculation.
+        </p>
+        <p>
+          Sound starts only when enabled. Master volume applies to equipment,
+          clicks, and alarms. Audio is visualized by the same alarm states and
+          is not required to operate the simulator. The simulation pauses while
+          this tab is hidden; sound is suspended too. Faster playback changes
+          simulated time, not integration steps.
+        </p>
+      </div>
+    </dialog>
+    <noscript>Enable JavaScript to run Reactor Lab.</noscript>
   </body>
 </html>

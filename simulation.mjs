@@ -20,7 +20,7 @@ export const PARAMETERS = Object.freeze({
 });
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-const fuelConductance = (flow) => 2.2 * (0.12 + 0.88 * flow);
+const fuelConductance = (flow) => 0.0066 + 2.1934 * flow;
 const steamConductance = (flow) => 14 * (0.06 + 0.94 * Math.sqrt(flow));
 const turbineEfficiency = (hot, cold) =>
   clamp(0.78 * (1 - (cold + 273.15) / (hot + 273.15)), 0, 0.5);
@@ -46,6 +46,8 @@ export class ReactorSimulation {
 
   reset() {
     this.controls = { ...DEFAULT_CONTROLS };
+    this.equipment = { primary: true, cooling: true, emergency: false };
+    this.actuators = { primary: 70, steam: 65, cooling: 75, emergency: 0 };
     const q = (PARAMETERS.ratedHeat * this.controls.reactor) / 100;
     const flow = this.controls.primary / 100;
     const valve = this.controls.steam / 100;
@@ -64,6 +66,8 @@ export class ReactorSimulation {
       time: 0,
       fissionPower: q * 0.94,
       decayHeat: q * 0.06,
+      decayFast: q * 0.06 * 0.3,
+      decaySlow: q * 0.06 * 0.7,
       fuelTemperature: primary + q / fuelConductance(flow),
       primaryTemperature: primary,
       steamTemperature: steam,
@@ -71,6 +75,8 @@ export class ReactorSimulation {
       rotorEnergy: PARAMETERS.rotorEnergy,
       fuelReserveMWh: PARAMETERS.fuelReserveMWh,
       tripReason: null,
+      coolantFraction: 1,
+      coreDamage: 0,
     };
     this.energy = { generated: 0, exported: 0, rejected: 0 };
     return this.readings();
@@ -83,6 +89,14 @@ export class ReactorSimulation {
       throw new TypeError("Control value must be finite.");
     this.controls[name] =
       name === "reactor" && this.state.tripReason ? 0 : clamp(value, 0, 100);
+  }
+
+  setEquipment(name, running) {
+    if (!Object.hasOwn(this.equipment, name))
+      throw new RangeError(`Unknown equipment: ${name}`);
+    if (typeof running !== "boolean")
+      throw new TypeError("Equipment state must be boolean.");
+    this.equipment[name] = running;
   }
 
   scram(reason = "Manual shutdown") {
@@ -100,22 +114,28 @@ export class ReactorSimulation {
     else if (s.condenserTemperature > 85)
       this.scram("Condenser temperature limit");
     else if (s.fuelReserveMWh <= 0) this.scram("Fuel energy depleted");
+    else if (this.actuators.primary < 12 && s.fissionPower > 200)
+      this.scram("Low primary flow");
+    else if (s.coolantFraction < 0.6) this.scram("Low coolant inventory");
   }
 
   fluxes() {
     const s = this.state;
-    const c = this.controls;
-    const primaryFlow = c.primary / 100;
-    const coolingFlow = c.cooling / 100;
+    const primaryFlow = this.actuators.primary / 100;
+    const coolingFlow = this.actuators.cooling / 100;
+    const wetness = clamp((s.coolantFraction - 0.15) / 0.65, 0, 1);
     const heat = s.fissionPower + s.decayHeat;
     const fuelToPrimary =
-      fuelConductance(primaryFlow) * (s.fuelTemperature - s.primaryTemperature);
+      fuelConductance(primaryFlow) *
+      wetness *
+      (s.fuelTemperature - s.primaryTemperature);
     const primaryToSteam =
       steamConductance(primaryFlow) *
+      s.coolantFraction *
       (s.primaryTemperature - s.steamTemperature);
     const turbineHeat =
       4.4 *
-      (c.steam / 100) *
+      (this.actuators.steam / 100) *
       Math.max(0, s.steamTemperature - s.condenserTemperature);
     const shaftPower =
       turbineHeat *
@@ -133,13 +153,36 @@ export class ReactorSimulation {
           )
         : 0;
     const grossElectric = generatorLoad * 0.98;
-    const auxiliaryPower = 3 + 8 * primaryFlow ** 3 + 4 * coolingFlow ** 3;
+    const emergencyHeat =
+      (this.actuators.emergency / 100) *
+      Math.min(120, Math.max(0, s.fuelTemperature - PARAMETERS.ambient) * 0.35);
+    const auxiliaryPower =
+      3 +
+      8 * primaryFlow ** 3 +
+      4 * coolingFlow ** 3 +
+      (6 * this.actuators.emergency) / 100;
     const netElectric = grossElectric - auxiliaryPower;
     const coolingHeat =
       32.2 * coolingFlow * (s.condenserTemperature - PARAMETERS.ambient);
     const condenserHeat = turbineHeat - shaftPower;
+    // Illustrative coolant loss above saturation. Vapor carries sensible and latent energy away.
+    const boilHeat =
+      s.coolantFraction > 0.15
+        ? Math.min(80, Math.max(0, s.primaryTemperature - 345) * 0.8)
+        : 0;
+    const inventoryLoss = boilHeat / 60000;
+    const inventoryEnthalpy =
+      inventoryLoss *
+      PARAMETERS.primaryCapacity *
+      (s.primaryTemperature - PARAMETERS.ambient);
     const rejectedHeat =
-      coolingHeat + rotorLoss + generatorLoad * 0.02 + auxiliaryPower;
+      coolingHeat +
+      rotorLoss +
+      generatorLoad * 0.02 +
+      auxiliaryPower +
+      emergencyHeat +
+      boilHeat +
+      inventoryEnthalpy;
     const storageRate = heat - netElectric - rejectedHeat;
     return {
       heat,
@@ -156,6 +199,10 @@ export class ReactorSimulation {
       condenserHeat,
       rejectedHeat,
       storageRate,
+      emergencyHeat,
+      boilHeat,
+      inventoryLoss,
+      inventoryEnthalpy,
     };
   }
 
@@ -167,6 +214,20 @@ export class ReactorSimulation {
       const dt = Math.min(remaining, PARAMETERS.maxStep);
       this.checkProtection();
       const s = this.state;
+      for (const name of ["primary", "cooling", "emergency"]) {
+        const command = this.equipment[name]
+          ? name === "emergency"
+            ? 100
+            : this.controls[name]
+          : 0;
+        this.actuators[name] +=
+          (command - this.actuators[name]) * (1 - Math.exp(-dt / 3));
+      }
+      this.actuators.steam += clamp(
+        this.controls.steam - this.actuators.steam,
+        -8 * dt,
+        8 * dt,
+      );
       const target = this.state.tripReason
         ? 0
         : ((PARAMETERS.ratedHeat * this.controls.reactor) / 100) * 0.94;
@@ -174,14 +235,36 @@ export class ReactorSimulation {
       s.fissionPower +=
         (target - s.fissionPower) * (1 - Math.exp(-dt / responseTime));
       const decayTarget = (s.fissionPower * 0.06) / 0.94;
-      s.decayHeat += (decayTarget - s.decayHeat) * (1 - Math.exp(-dt / 180));
+      s.decayFast +=
+        (decayTarget * 0.3 - s.decayFast) * (1 - Math.exp(-dt / 80));
+      s.decaySlow +=
+        (decayTarget * 0.7 - s.decaySlow) * (1 - Math.exp(-dt / 1800));
+      s.decayHeat = s.decayFast + s.decaySlow;
 
       const q = this.fluxes();
       s.fuelTemperature +=
-        ((q.heat - q.fuelToPrimary) * dt) / PARAMETERS.fuelCapacity;
-      s.primaryTemperature +=
-        ((q.fuelToPrimary - q.primaryToSteam) * dt) /
-        PARAMETERS.primaryCapacity;
+        ((q.heat - q.fuelToPrimary - q.emergencyHeat) * dt) /
+        PARAMETERS.fuelCapacity;
+      const primaryEnergy =
+        PARAMETERS.primaryCapacity *
+        s.coolantFraction *
+        (s.primaryTemperature - PARAMETERS.ambient);
+      const makeup =
+        (this.actuators.emergency / 100) * 0.015 * (1 - s.coolantFraction);
+      s.coolantFraction = clamp(
+        s.coolantFraction + (makeup - q.inventoryLoss) * dt,
+        0.1499,
+        1,
+      );
+      s.primaryTemperature =
+        PARAMETERS.ambient +
+        (primaryEnergy +
+          (q.fuelToPrimary -
+            q.primaryToSteam -
+            q.boilHeat -
+            q.inventoryEnthalpy) *
+            dt) /
+          (PARAMETERS.primaryCapacity * s.coolantFraction);
       s.steamTemperature +=
         ((q.primaryToSteam - q.turbineHeat) * dt) / PARAMETERS.steamCapacity;
       s.condenserTemperature +=
@@ -191,6 +274,11 @@ export class ReactorSimulation {
       this.energy.generated += q.heat * dt;
       this.energy.exported += q.netElectric * dt;
       this.energy.rejected += q.rejectedHeat * dt;
+      if (s.fuelTemperature > 1200)
+        s.coreDamage = Math.min(
+          100,
+          s.coreDamage + ((dt * (s.fuelTemperature - 1200)) / 300) * 0.15,
+        );
       s.time += dt;
       this.checkProtection();
       remaining -= dt;
@@ -202,7 +290,9 @@ export class ReactorSimulation {
     const p = PARAMETERS;
     return (
       p.fuelCapacity * (s.fuelTemperature - p.ambient) +
-      p.primaryCapacity * (s.primaryTemperature - p.ambient) +
+      p.primaryCapacity *
+        s.coolantFraction *
+        (s.primaryTemperature - p.ambient) +
       p.steamCapacity * (s.steamTemperature - p.ambient) +
       p.condenserCapacity * (s.condenserTemperature - p.ambient) +
       s.rotorEnergy
@@ -218,6 +308,8 @@ export class ReactorSimulation {
     return {
       ...s,
       ...q,
+      actual: { ...this.actuators },
+      equipment: { ...this.equipment },
       steamPressure: saturationPressure(s.steamTemperature),
       rpm:
         PARAMETERS.nominalRPM *

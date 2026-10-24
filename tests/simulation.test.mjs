@@ -127,3 +127,66 @@ test("controls are bounded, invalid inputs fail, and reset restores initial stat
   assert.equal(sim.controls.reactor, 60);
   assert.equal(sim.state.fuelReserveMWh, PARAMETERS.fuelReserveMWh);
 });
+
+test("equipment commands retain setpoints while actuators travel and coast down", () => {
+  const sim = new ReactorSimulation();
+  sim.setEquipment("primary", false);
+  sim.setControl("steam", 0);
+  assert.equal(sim.readings().actual.primary, 70);
+  assert.equal(sim.readings().actual.steam, 65);
+  sim.step(1);
+  assert.ok(
+    sim.readings().actual.primary > 45 && sim.readings().actual.primary < 55,
+  );
+  assert.ok(Math.abs(sim.readings().actual.steam - 57) < 1e-6);
+  assert.equal(sim.controls.primary, 70);
+  const coasting = sim.readings().actual.primary;
+  sim.setEquipment("primary", true);
+  sim.step(1);
+  assert.ok(sim.readings().actual.primary > coasting);
+  assert.throws(() => sim.setEquipment("missing", true));
+  assert.throws(() => sim.setEquipment("primary", "on"));
+});
+
+test("a successful trip cannot prevent damage when core heat removal stays unavailable", () => {
+  const sim = new ReactorSimulation();
+  const initial = sim.storedEnergy();
+  sim.setEquipment("primary", false);
+  sim.setEquipment("cooling", false);
+  sim.step(1200);
+  const damaged = sim.readings();
+  assert.ok(damaged.tripReason);
+  assert.ok(damaged.fissionPower < 0.001);
+  assert.ok(damaged.fuelTemperature > 1200);
+  assert.ok(damaged.coreDamage > 1);
+  sim.setEquipment("emergency", true);
+  sim.step(240);
+  const recovered = sim.readings();
+  assert.ok(recovered.fuelTemperature < 1000);
+  assert.ok(
+    recovered.coreDamage >= damaged.coreDamage,
+    "cooling cannot erase damage",
+  );
+  assert.ok(recovered.emergencyHeat > 0);
+  const accounted =
+    sim.energy.generated - sim.energy.exported - sim.energy.rejected;
+  assert.ok(Math.abs(accounted - (sim.storedEnergy() - initial)) < 1e-4);
+});
+
+test("coolant loss and cold makeup preserve energy while changing water inventory", () => {
+  const sim = new ReactorSimulation();
+  sim.state.primaryTemperature = 360;
+  sim.state.coolantFraction = 0.7;
+  sim.setControl("steam", 0);
+  const initial = sim.storedEnergy();
+  sim.step(3);
+  const depleted = sim.state.coolantFraction;
+  assert.ok(depleted < 0.7);
+  sim.setEquipment("emergency", true);
+  sim.step(20);
+  assert.ok(sim.state.coolantFraction > depleted);
+  assert.ok(sim.state.primaryTemperature < 360);
+  const accounted =
+    sim.energy.generated - sim.energy.exported - sim.energy.rejected;
+  assert.ok(Math.abs(accounted - (sim.storedEnergy() - initial)) < 1e-5);
+});
